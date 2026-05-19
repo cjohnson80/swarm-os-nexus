@@ -17,6 +17,9 @@ import termios
 import tty
 import concurrent.futures
 
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), 'core'))
 from agent_core import AgentCore, AGENT_WING, SKILLS_DIR
 
 custom_theme = Theme({

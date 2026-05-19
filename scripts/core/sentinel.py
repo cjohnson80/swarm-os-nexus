@@ -4,7 +4,7 @@ import os
 import time
 
 LOG_FILE = os.path.expanduser("~/.native-agent/pulse.log")
-PULSE_SCRIPT = os.path.expanduser("~/.native-agent/scripts/pulse.py")
+PULSE_SCRIPT = os.path.expanduser("~/.native-agent/scripts/core/pulse.py")
 
 def log(msg):
     print(f"[SENTINEL] {msg}")
@@ -48,7 +48,7 @@ def start_sentinel():
                 with open(err_path, "w") as f: f.write(error_block)
                 
                 # Trigger pulse
-                subprocess.Popen([PULSE_SCRIPT, "--emergency"])
+                subprocess.Popen(["/home/chrisj/.native-agent/venv/bin/python3", PULSE_SCRIPT, "--emergency"])
                 
                 buffer = []
                 last_trigger = time.time()
