@@ -1,0 +1,43 @@
+// ===============================================
+// SYSTEM MONITOR PULSE REPORT | CYCLE 732-B
+// STATUS: OPTIMAL (CAUTION ADVISED)
+// ===============================================
+
+[>> HEALTH ASSESSMENT: SWARM CORE PROCESSES]
+SYSTEM UPTIME: 6 hours, 15 minutes. Stable operational window.
+LOAD AVERAGE: 0.35 / 0.62 / 0.62. Nominal. Swarm operations are running below capacity thresholds.
+MEMORY MANAGEMENT: Optimal. Usage is low (2.4Gi used / 15Gi total). Available cache (13Gi) suggests aggressive memory allocation is not currently required. No swap utilization detected.
+
+[>> CRITICAL ANOMALY LOG: STORAGE UTILIZATION]
+ALERT LEVEL: YELLOW (CAUTION)
+Observation: Disk /dev/sda2 utilization is at 73% (315G used / 456G total).
+Analysis: While remaining free space (118G) is substantial, maintaining a utilization rate below 70% is best practice for autonomous long-term operations. Recommend scheduling a data audit and log rotation routine to prevent potential saturation bottlenecks.
+
+// -----------------------------------------------
+// [>> RESEARCH PROTOCOL: DATA CLEANUP VECTORS]
+// Skill Focus: Advanced File System Indexing (find + time)
+// Description: The `find` utility is immensely powerful for locating resources based on deep criteria (ownership, size, time, permissions). This is vital for proactive disk space management.
+// Use Case: Identifying and safely archiving/deleting mission log files or temporary data that exceeds a specific age.
+
+[>> IMPLEMENTATION MANUAL: AGE-BASED DELETION]
+Goal: Locate and list all files in the current directory (and subdirectories) that have not been modified in the last 45 days. This prevents the accidental deletion of recent operational data.
+
+1.  **Syntax Structure:**
+    ```bash
+    find /path/to/target -type f -mtime +45 -print
+    ```
+2.  **Component Breakdown:**
+    *   `find /path/to/target`: Initiates the search from the specified path.
+    *   `-type f`: Restricts the search only to regular files (f). This prevents accidentally targeting directories.
+    *   `-mtime +45`: Targets files whose modification time (`mtime`) is *greater than* (`+`) 45 days.
+    *   `-print`: Simply lists the discovered paths for human review (safer initial run).
+3.  **Actionable Warning (DANGER ZONE):**
+    To delete these identified files (***USE EXTREME CAUTION***):
+    ```bash
+    find /path/to/target -type f -mtime +45 -delete
+    ```
+    *Recommendation: Always run the `-print` version first to confirm the target list before adding the `-delete` flag.*
+
+// ===============================================
+// PULSE CONCLUSION: CORE STABILITY MAINTAINED. SCHEDULE STORAGE AUDIT.
+// ===============================================

@@ -1,0 +1,39 @@
+**********************************************************************
+SYSTEM MONITOR PULSE: STATUS ALERT // NODE: CORE-SUITE-7
+TIMESTAMP: 12:00:00
+PRIORITY: CRITICAL
+**********************************************************************
+
+>>>>> [ CORE DIAGNOSTICS SUMMARY ] <<<<<
+
+!! 🚨 RESOURCE ALERT: CRITICAL DISK PRESSURE !! 🚨 !!
+The root filesystem (/dev/sda2) is operating at 87% utilization (375G used / 456G total).
+This level of disk saturation severely limits write operations and risks system instability. Immediate disk cleanup or storage expansion is mandatory.
+
+!! ⚠️ MEMORY WARNING: SWAP OVERCOMMITMENT DETECTED !! ⚠️ !!
+The system has utilized 2.1GiB of swap space. While the 'Available' physical memory (4.7Gi) is decent, active swapping indicates that memory pressure is high and the OS is struggling to maintain performance efficiently. Investigate high-memory-footprint processes.
+
+>>>>> [ SYSTEM HEALTH GRADE ] <<<<<
+Status: Yellow-Orange (Warning/Degraded)
+Action Required: Disk space remediation and process memory profiling.
+
+>>>>> [ RESEARCH MODULE: NEW OPERATIONAL SKILL ] <<<<<
+
+// Skill Focus: Process Tracing and Resource Leaks using 'lsof'
+// Lsof stands for "List Open Files." It is an invaluable utility for system administrators and autonomous systems that need to understand *why* a process is consuming resources, especially concerning file handles or network sockets.
+
+// Implementation Guide:
+1.  **Basic Use (Find all open files by PID):**
+    `lsof -p [PID_NUMBER]`
+    *   *Example:* If process 1234 is behaving strangely, run `lsof -p 1234` to see every file it has open.
+
+2.  **Identifying Network Connections (The most common use case):**
+    To see which process is listening on a specific port (e.g., port 80):
+    `sudo lsof -i :80`
+
+3.  **Debugging Disk Usage (Finding the culprit for massive I/O):**
+    If logs or specific directories are filling up, `lsof` can help identify processes that have the files open and preventing them from being properly deleted or released.
+
+**System Integrity Recommendation:**
+Prioritize running `df -h` and `lsof` against high-IO directories to diagnose the resource bottleneck before load average spikes occur.
+**********************************************************************

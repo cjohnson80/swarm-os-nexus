@@ -1,0 +1,34 @@
+// SYSTEM MONITOR PULSE LOG: [STATUS: WARNING]
+// TARGET: CORE ARCHITECTURE V2.1
+// TIME STAMP: 12:30:00
+
+==================================================
+// I. RESOURCE ALLOCATION ANALYSIS (MEMORY DUMP)
+==================================================
+
+[CORE STABILITY]: Nominal. Load averages are minimal (0.62 avg). Processing overhead is low, indicating a highly idle swarm state.
+
+[MEMORY MANAGEMENT]: Excellent. Available RAM is 12Gi, providing a substantial buffer for immediate computational spikes. The system's caching strategy is optimized.
+
+[DISK INTEGRITY CHECK]: CRITICAL FLAG DETECTED. The root filesystem (/dev/sda2) is operating at 87% capacity (375G used / 456G total). While the system is stable *now*, this degree of disk saturation significantly elevates the risk of operational failure, particularly related to logging, temporary file creation, or process execution. Immediate investigation into log purging or file system cleanup is mandatory.
+
+==================================================
+// II. SYSTEM ADVISORY (INTERESTING OBSERVATIONS)
+==================================================
+
+**WARNING: STORAGE THROTTLING IMMINENT.** The system is running on fumes of disk space. Resource management protocols must prioritize freeing up space. Investigate `/var/log` directories immediately for excessive logging.
+
+==================================================
+// III. RESEARCH FILE: LINUX POWER UTILITY
+==================================================
+
+**NEW SKILL ACQUIRED: The `lsof` Command (List Open Files)**
+
+`lsof` is an invaluable diagnostic tool that tracks open files, network sockets, and resources associated with running processes. When diagnosing performance bottlenecks or resource leaks (which can manifest as sudden resource spikes or unidentifiable disk usage), knowing which process is holding onto a file descriptor is crucial. It goes beyond simple monitoring and tells you *who* is using the resource.
+
+**IMPLEMENTATION PROTOCOL:**
+To identify all files opened by a specific process ID (PID) in the current system state, use the following syntax:
+
+`lsof -p [PID]`
+
+*Example Scenario:* If a process (PID 1234) is suspected of leaking file handles, executing `lsof -p 1234` will list every file and resource that process is currently holding open, allowing the swarm to pinpoint the exact source of the leak for remediation.

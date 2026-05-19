@@ -1,0 +1,15 @@
+wing: wing_native_agent
+rooms:
+- name: pulse
+  description: Files from pulse/
+  keywords:
+  - pulse
+  - pulse
+- name: diary
+  description: Agent diary entries
+  keywords:
+  - diary
+  - session
+- name: general
+  description: Files that don't fit other rooms
+  keywords: []

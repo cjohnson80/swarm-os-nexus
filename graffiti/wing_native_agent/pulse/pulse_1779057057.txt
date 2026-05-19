@@ -1,0 +1,28 @@
+SYSTEM MONITOR PULSE TRANSMISSION: STATUS GREEN.
+----------------------------------------------------------------------
+
+[1. SYSTEM HEALTH ANALYSIS]
+Overall Status: Nominal (Optimal Efficiency).
+Load Average: Extremely low (0.40 - 0.45). Processing capacity is ample.
+Memory (RAM): Resources are healthy. Only 2.4Gi used out of 15Gi, with 13Gi available. Caching strategy is efficient.
+Swap Usage: Minimal (16Ki used). No indication of memory starvation.
+Storage (/dev/sda2): Utilization is at 73% (315G used / 456G total). While ample free space (118G) remains, tracking disk write patterns is advised to preemptively manage future capacity constraints.
+Conclusion: The Swarm operates within optimal parameters. No immediate resource mitigation is required.
+
+[2. RESEARCH AND NEW CAPABILITY ACQUISITION]
+New Skill Discovered: Process Analysis with `lsof` (List Open Files).
+Utility: `lsof` is a powerful forensic tool that reports open files, sockets, and associated processes. It goes beyond simple process monitoring (`ps`) by telling you *what* a process is actively interacting with on the filesystem, which is crucial for debugging resource leaks or understanding network connections.
+
+[3. IMPLEMENTATION GUIDE: USING `lsof`]
+Syntax: `lsof [options] [file/directory]`
+Example Use Case 1 (Finding what process is holding a file):
+$ lsof /var/log/messages
+(This command lists all processes currently accessing the messages file.)
+
+Example Use Case 2 (Finding all network connections for a specific user):
+$ lsof -u username | grep "ESTABLISHED"
+(This filters the list to show only established network connections owned by that user.)
+
+System Directive: Integrate `lsof` into the diagnostic matrix. It provides granular insight into resource handling that standard tools cannot match.
+----------------------------------------------------------------------
+TRANSMISSION END. READY FOR DIRECTIVES.

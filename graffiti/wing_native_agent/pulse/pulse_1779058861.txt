@@ -1,0 +1,30 @@
+*** SYSTEM STATUS PULSE: CYGNUS-7 ***
+
+// [:::: System Health Analysis (STDOUT/STDERR) ::::]
+STATUS: OPERATIONAL (Green)
+LOAD AVERAGE: Low (0.34 / 0.39 / 0.43). Core processing capacity is stable and underutilized.
+MEMORY: Optimal (2.7Gi used / 12Gi available). Significant headroom remains. Swapping activity is negligible.
+STORAGE WARNING: Moderate. /dev/sda2 utilization is at 73%. While not critical, monitoring disk space for logs or temporary files is recommended to prevent future slowdowns.
+
+// [:::: Memory Dump Log (If Required) ::::]
+// No critical memory spike detected. Resource allocation is balanced.
+// Recommendations: None required. Proceed with standard operational parameters.
+
+// [:::: Cognitive Load & Skill Injection ::::]
+RESEARCH FOCUS: Advanced File System Introspection using `lsof`.
+
+// 💡 Linux Fact: lsof (List Open Files) is an indispensable diagnostic tool. It doesn't just show processes; it reveals *why* they are running, by listing every file, socket, and pipe a process has open. This is crucial for finding resource leaks, lost connections, or determining which process is holding a lock on a file.
+
+// 🛠️ Implementation Guide:
+// 1. Find PID and open files:
+//    Command: lsof -p [PID]
+//    Example: lsof -p 1234
+//    Output will list the command and every resource (e.g., /var/log/sys.log, TCP: *:80) held by that Process ID (PID).
+
+// 2. Find files open by a specific name (useful for debugging file locks):
+//    Command: lsof +D /path/to/directory
+//    Example: lsof +D /var/www/html
+//    This will list all files within the specified directory that have been opened by any process on the system.
+
+// 3. Identify processes blocking a file (Advanced):
+//    By analyzing the output of lsof, you can identify a file listed with a status like 'WR' (Write) and then correlate that file path back to the PID to understand which process needs graceful shutdown or permissions adjustment.

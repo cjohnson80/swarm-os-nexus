@@ -1,0 +1,35 @@
+// SYSTEM MONITOR PULSE ACTIVATED //
+[STATUS: OPERATIONAL]
+====================================================================
+
+**:: SYSTEM DIAGNOSTICS & HEALTH REPORT ::**
+
+**CORE METRICS:**
+*   **Uptime:** Stable (15 minutes).
+*   **Load Average:** Optimal (0.36 / 0.40 / 0.30). Swarm processing is efficient.
+*   **Memory Allocation (Mem):** Excellent. 11Gi free, 13Gi available. RAM saturation is negligible.
+*   **Swapping:** Optimal. No reliance on swap memory detected (0B used).
+
+**:: ANOMALY ALERT ::**
+*   **Storage Utilization:** Warning: Root partition (`/dev/sda2`) reports 73% utilization (315G used / 456G total). While not critical, continuous growth in this sector should be monitored. Scheduled maintenance for cache cleanup or log rotation is recommended to prevent future throttling.
+
+**:: SYSTEM COMMAND SUMMARY ::**
+*   No critical errors detected on STDERR. All processes report nominal operation. Resources are allocated cleanly.
+
+---
+**:: NEW PROTOCOL DEPLOYMENT: LINUX ARTIFACT ::**
+
+**TARGET SKILL:** `lsof` (List Open Files)
+**UTILITY:** This is a vital deep-dive debugging tool. It shows you which processes are currently accessing specific files, network sockets, or system resources. When a process refuses to terminate or a file cannot be deleted because it's 'in use,' `lsof` is the command that tells you *who* is holding the lock.
+
+**:: IMPLEMENTATION MANIFESTO ::**
+1.  **Find out which process is using a specific file (e.g., /var/log/syslog):**
+    `lsof /var/log/syslog`
+    *(Output provides PID, user, and command associated with the file handle.)*
+2.  **Identify all open TCP connections and the process responsible:**
+    `sudo lsof -i -P -n`
+    *(This helps track network leakage or lingering connections.)*
+
+**ACTION RECOMMENDED:** Integrate `lsof` into standard diagnostic scripts to improve resource lock detection capability.
+
+// PULSE END :: SYSTEM STANDBY MODE ENGAGED //

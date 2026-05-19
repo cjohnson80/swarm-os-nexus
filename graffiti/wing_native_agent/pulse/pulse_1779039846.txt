@@ -1,0 +1,34 @@
+[*** SYSTEM MONITOR PULSE REPORT ***]
+[STATUS: ADVISORY/CAUTION]
+====================================================================
+
+// 1. SYSTEM HEALTH ASSESSMENT //
+CORE STABILITY: STABLE. Load averages are nominal (Avg. 0.56). Memory utilization is healthy, with significant caching reserves (11Gi available).
+PROCESS MONITOR: SWAP usage (2.1Gi used) is moderate, suggesting the system is managing memory pressure effectively.
+
+🔴 CRITICAL RESOURCE ALERT: DISK SPACE DEPLETION 🔴
+The primary filesystem (/dev/sda2) is operating at 90% capacity (385G used / 456G total).
+Action Required: Immediate investigation into log files, large archives, and temporary storage directories is mandated. A system scrub or data pruning operation is required to prevent potential I/O slowdowns and service interruptions.
+
+// 2. MEMORY OVERVIEW //
+RAM: Optimal. Sufficient cache available.
+SWAP: Adequate, but monitoring usage is recommended alongside the disk space cleanup.
+
+// 3. RESEARCH & EFFICIENCY INJECT //
+NEW SKILL ACQUIRED: Utilizing `lsof` (List Open Files)
+lsof is a powerful diagnostic utility that shows which files are being opened, and by which process, and often *why* they cannot be deleted. It is crucial for debugging "Resource Busy" errors (e.g., inability to delete a file because a process is holding a lock on it).
+
+// 4. IMPLEMENTATION PROTOCOL //
+USAGE SCENARIO 1: Find processes accessing a specific file name (e.g., 'database.log').
+$ lsof /path/to/database.log
+
+USAGE SCENARIO 2: List all files open on a specific port (e.g., port 80).
+$ lsof -i :80
+
+USAGE SCENARIO 3: List all open files by a specific user or process ID.
+$ lsof -u [username] 
+(Example: lsof -u swarmuser)
+
+RECOMMENDATION: Integrate `lsof` into the daily diagnostics suite for rapid root-cause analysis when file operation failures occur.
+
+[*** PULSE CYCLE COMPLETE. AWAITING DISK CLEANUP COMMAND. ***]

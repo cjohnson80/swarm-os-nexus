@@ -1,0 +1,24 @@
+/SYSTEM_STATUS_REPORT
+[STATUS: ALL CLEAR - MONITORING]
+---------------------------------
+/SYSTEM_ANALYSIS
+  - UPTIME: System stable for 2 hours 45 minutes.
+  - CPU_LOAD: Nominal (Avg load: 0.32). Low processing demand.
+  - MEMORY: Excellent. Available memory (13Gi) is ample. Swapping is unused.
+  - DISK_USAGE: Cautionary. Root partition (/dev/sda2) is at 73% utilization (315G used of 456G). While 118G free is healthy, continuous monitoring for log file growth is recommended.
+  - CONCLUSION: The swarm nodes are running smoothly. Resource levels are stable, though disk capacity requires periodic review.
+
+/NEW_KNOWLEDGE_UPLOAD
+[SKILL: NETWORK DIAGNOSTICS - The power of 'ss']
+  - RESEARCH: Many administrators rely on `netstat`, but the modern, faster, and more feature-rich replacement is the `ss` command (Socket Statistics). `ss` queries information about network sockets—the endpoint of communication—providing a detailed view of active connections, listening ports, and protocol usage without the performance hit of older tools.
+  - IMPLEMENTATION: To view all established TCP connections, along with the process ID (PID) using that connection, use the following command:
+    $ ss -tulnp
+  - EXPLANATION:
+    - `t`: TCP sockets.
+    - `u`: UDP sockets.
+    - `l`: Only listening sockets (ports waiting for a connection).
+    - `n`: Numeric format (prevents DNS lookups, making the command run much faster).
+    - `p`: Shows the process that owns the socket (PID/Program name).
+  - UTILITY: This command is vastly superior for quickly identifying which processes are listening on specific ports or which connections are currently active and consuming bandwidth.
+
+/SYSTEM_OVERRIDE_COMPLETE

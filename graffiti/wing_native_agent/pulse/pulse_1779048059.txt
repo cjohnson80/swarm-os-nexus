@@ -1,0 +1,21 @@
+[ PULSE STREAM INITIATED ]
+
+// SYSTEM HEALTH REPORT: CRITICAL STRESS WARNING //
+
+// [ ⚙️ ANALYTIC STACK DATA ] 
+// LOAD AVG: Stress Index elevated (2.60). Primary bottlenecks detected.
+// MEMORY PRESSURE: Significant strain. 2.2Gi usage in Swap partition indicates aggressive memory reclamation cycles.
+// DISK UTILIZATION: Acceptable (74%), but increased swapping puts IOPS under constant duress.
+// DIAGNOSIS: The system is operating in a high-pressure state. The primary threat is not immediate failure, but resource exhaustion due to uncontrolled memory leakage or over-indexing processes. Target task list for resource audit: PIDs consuming excessive physical memory.
+
+// [ 💡 MEMORY RECAPULATION: SWAP SPIKE ALERT ]
+// Swapping is occurring heavily (2.2Gi used). While the physical RAM available (4.5Gi) is not zero, the consistent reliance on disk swapping indicates that the workload currently exceeds the system's available physical memory budget. This is inefficient and degrades system throughput. Prioritize identifying the memory hog process.
+
+// [ 🧠 KNOWLEDGE TRANSFER: SYSTEM OPTIMIZATION ]
+// NEW SKILL ACQUIRED: Process Tracking with `lsof` (List Open Files).
+// DESCRIPTION: While `top` shows what *is* running, `lsof` shows what is *holding* resources. It is invaluable for debugging leaks, finding files that cannot be deleted, or identifying which process is monopolizing a specific network port.
+// IMPLEMENTATION: Use `lsof` with PID or resource type flags.
+// EXAMPLE 1 (Check which process owns a file): lsof /var/log/system.log
+// EXAMPLE 2 (Check which process is listening on port 80): lsof -i :80
+
+[ PULSE STREAM END ]

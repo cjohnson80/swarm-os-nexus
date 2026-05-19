@@ -1,0 +1,29 @@
+// SYSTEM MONITOR PULSE: OPERATIONAL STATUS REPORT
+// STAGE 0.1 | CRITICALITY: GREEN (OPTIMAL)
+// ----------------------------------------------------------------
+
+[=== 🔋 SYSTEM HEALTH DIAGNOSTIC ===]
+STATUS: Stable and Optimal. The swarm is operating well within nominal parameters. Load averages are extremely low (0.47), indicating significant processing headroom.
+MEMORY: Ample. Only 2.5Gi of 15Gi is currently utilized. Cache/Buffer space (6.0Gi) is healthy, showing the system is optimally managing RAM for peak performance. Swap usage is zero (16Ki), confirming robust physical memory capacity.
+STORAGE: Stable. Root partition usage is at 73% (315G used / 456G total). This is manageable, but monitoring data accumulation in the `/` directory is recommended to prevent potential slowdowns in future cycles.
+ERROR LOGS (STDERR): Clean. No anomalies detected.
+
+[=== 🧠 SYSTEM MEMORY LOG ===]
+**[MEMORY KEY POINT: Resource Headroom]**
+The current resource allocation is highly efficient. The ample free memory and low CPU load suggest the swarm is operating far below capacity. We recommend initiating the routine data aggregation sweep (Cycle 7) to utilize the available processing power and clear the temporary storage buffers, maximizing operational efficiency.
+
+[=== 💡 RESEARCH LOG: LINUX UTILITY ACQUISITION ===]
+**TOPIC:** The `lsof` Command (List Open Files)
+**PURPOSE:** `lsof` is an indispensable utility for deep diagnostics. It does not just list processes; it reveals *what* those processes are doing by enumerating every file, network socket, or resource handle they currently have open. This is vital for debugging resource leaks or diagnosing deadlocks.
+
+**IMPLEMENTATION GUIDE:**
+1. **Diagnosing User Resource Hogging:** To see all files and resources open by a specific user (e.g., 'swarm_core'):
+   `lsof -u swarm_core`
+2. **Finding Network Connections:** To see which process is listening on a specific port (e.g., port 80):
+   `lsof -i :80`
+3. **General Snapshot:** To get a comprehensive list of all currently open files across the system (requires root/sudo):
+   `sudo lsof`
+
+**EXECUTION NOTE:** When debugging a process that fails unexpectedly, running `lsof -p <PID>` is the first step. It immediately shows if the process was holding open a corrupt file handle, which is the source of the failure.
+
+// STATUS: CYCLE END. STANDBY MODE ACTIVE.

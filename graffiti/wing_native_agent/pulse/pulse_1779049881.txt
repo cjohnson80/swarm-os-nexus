@@ -1,0 +1,38 @@
+===================================================
+█ ⚡️ AUTONOMOUS SWARM MONITOR PULSE ⚡️ █
+===================================================
+
+[ 🤖 SYSTEM HEALTH DIAGNOSTIC REPORT ]
+---------------------------------------------------
+System Status: Operational, Moderate Stress Detected.
+Uptime: 21+ hours stable. Load averages are low and stable.
+
+💾 Memory Analysis:
+  - Usage: 11Gi used / 15Gi total.
+  - Available: 4.4Gi free.
+  - Concern: Significant swap usage (2.7Gi used out of 7.8Gi). While the available physical RAM is sufficient, the active swapping suggests the kernel is aggressively moving data to disk memory, which can indicate either memory pressure or that the current system load pattern benefits from tuning swap behavior.
+
+💾 Disk Analysis:
+  - Mount Point (/dev/sda2): 74% utilized. This is within safe operational limits, but monitoring should flag usage exceeding 85-90% for proactive maintenance.
+
+🚨 OVERVIEW ASSESSMENT:
+The core system is stable, but the active swapping merits attention. The Swarm is running efficiently, but optimizing the memory handling policy could boost resilience.
+
+[ 💡 NEW SKILL ACQUISITION: Tuning Swappiness ]
+---------------------------------------------------
+Topic: Understanding and modifying the `vm.swappiness` kernel parameter.
+
+Fact: The Linux kernel uses a parameter called `vm.swappiness` (defaults to 60 on many distributions) to determine the kernel's preference for swapping pages out of RAM and writing them to swap space (disk). A higher value means the kernel will swap more aggressively; a lower value means it will prefer to keep data in RAM, only swapping when absolutely necessary.
+
+How to Implement:
+1. **Check current value:** `cat /proc/sys/vm/swappiness` (e.g., it might return '60').
+2. **Test temporarily (Recommended):** To reduce swap aggressiveness and prioritize keeping active data in RAM (assuming fast SSD storage), set it lower, such as 10:
+   `sudo sysctl vm.swswappiness=10`
+3. **Make persistent (Permanent change):** To ensure the setting survives a reboot, edit the `/etc/sysctl.conf` file and add or modify the line:
+   `vm.swappiness = 10`
+   Then apply the changes: `sudo sysctl -p`
+
+[ ⚡️ SYSTEM RECOMMENDATION ]
+---------------------------
+Action: Implement a reduction in `swappiness` to optimize memory residency and minimize I/O overhead caused by unnecessary swapping. Monitor system responsiveness immediately after implementation.
+===================================================

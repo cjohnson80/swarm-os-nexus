@@ -1,0 +1,8 @@
+SESSION:2026-05-17|USR.req:ingest.session|AGT.action:file.major.upgrades|★|PROJ:native-agent.v3.1
+*fierce*|COMPLETED:
+1. FIXED: websearch (replaced duckduckgo-search with ddgs v9.14.4).
+2. ADDED: ```graffiti``` tool block for AAAK memory filing.
+3. ADDED: Autonomous pulse script (~/.native-agent/scripts/pulse.py) via cron.
+4. ADDED: WAKE-UP context awareness using mempalace wake-up.
+5. ADDED: Streaming output using rich.live and ollama.stream.
+MEM: system.disk.critical|90%usage|research:lsof.utility.filed|★★★★★

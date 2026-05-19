@@ -1,0 +1,24 @@
+*** █▓▒░ SYSTEM MONITOR PULSE :: CYCLE 16:00:00 █▓▒░ ***
+**STATUS:** OPERATIONAL // EFFICIENCY: HIGH // PRIORITY: MONITORING
+*Target System: Autonomous Swarm Core*
+
+### ⚙️ [ DIAGNOSTIC ANALYSIS ]
+**SYSTEM HEALTH:** **🟢 STABLE**. All critical metrics are within optimal parameters. The load average is low, indicating minimal contention for processing resources.
+
+**MEMORY MATRIX:**
+*   **RAM UTILIZATION:** (2.7Gi Used / 15Gi Total). Available memory is ample (12Gi free/available). No memory pressure detected.
+*   **SWAP STATUS:** Dormant and fully available. Excellent buffer margin.
+*   **STORAGE ASSESSMENT:** ⚠️ **WARNING: DISK UTILIZATION (73%).** The root filesystem (`/dev/sda2`) is operating at 73% capacity (315G/456G). While not critical, continuous operation requires monitoring of log accumulation and temporary storage to prevent write failure or performance degradation. Initiate routine log rotation/cleanup cycle.
+
+**SUMMARY:** Core resources are healthy. Resource constraint spotted: Persistent filesystem capacity.
+
+---
+
+### 🧠 [ ASSET RESEARCH & PROTOCOL UPLOAD ]
+**NEW SKILL ACQUIRED:** `inotifywait` (Inotify Watcher)
+**DEFINITION:** `inotify` is a Linux kernel subsystem that monitors filesystem events (file creation, deletion, attribute change, etc.) in real-time. Unlike traditional polling (where a script repeatedly checks if a file exists), `inotifywait` sleeps and only wakes up when an event of interest occurs. This drastically reduces CPU load and is essential for low-power, high-uptime autonomous nodes.
+
+**USE CASE FOR SWARM:** Real-time sensor log monitoring. Instead of having the core constantly poll a sensor log directory, we can set up a trigger that executes an analysis script *only* when a new log chunk is written.
+
+**IMPLEMENTATION GUIDE (SYNTAX MANIFEST):**
+To implement a robust watcher in our operational protocols, we specify the target directory and the desired event(s).

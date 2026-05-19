@@ -1,0 +1,33 @@
+==================================================
+// SYSTEM MONITOR PULSE REPORT //
+// Swarm Health Status: GREEN - NOMINAL OPERATION
+==================================================
+
+[*] SYSTEM STABILITY ANALYSIS:
+The autonomous swarm core is operating within optimal parameters. Load averages (0.53, 0.71, 0.59) indicate low CPU utilization, suggesting that current processing demands are manageable and the system is not under immediate stress. Memory allocation is robust: 13Gi of memory is immediately available, and swap usage is negligible. Disk usage on /dev/sda2 is at 73%, which is moderate. While 315G is used, the remaining 118G provides a comfortable buffer for continued operations.
+
+[*] RESOURCE CONCERNS:
+No critical resource shortages detected. System health is stable.
+
+[*] MEMORY CREATE:
+[STATUS: UNNECESSARY]
+No immediate memory dump or deep diagnostics are required. The current resource buffer is adequate.
+
+==================================================
+// RESEARCH FILE: LINUX DIAGNOSTICS ENHANCEMENTS
+==================================================
+
+[SKILL FOCUS: 'lsof' - List Open Files]
+*   **Concept:** `lsof` is a powerful utility crucial for troubleshooting resource leaks and tracking down which processes are holding onto specific files, network ports, or devices. It moves beyond simple monitoring by identifying the *owner* and *purpose* of an open handle.
+*   **Use Case:** If the swarm detects an inexplicable "file locked" error or a specific port collision, `lsof` is the go-to tool to pinpoint the guilty process (PID).
+*   **Implementation Guide:**
+    1.  **Find Processes using a specific file:**
+        `lsof /path/to/file`
+        *(Output shows which PIDs have the file open and why.)*
+    2.  **Find processes using a specific network port (e.g., Port 8080):**
+        `lsof -i :8080`
+        *(This is invaluable for debugging network communication failures.)*
+    3.  **Find all open files related to a specific user:**
+        `lsof -u username`
+
+**// OPERATIONAL DIRECTIVE:** Integrate `lsof` into the diagnostics suite for enhanced incident response capabilities.

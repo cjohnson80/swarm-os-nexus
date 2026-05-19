@@ -1,0 +1,24 @@
+// SYSTEM STATUS REPORT: PULSE CYCLE INITIATED
+// [SYSTEM INTEGRITY: STABLE]
+
+=== █ STASIS ANALYSIS █ ===
+**LOAD AVERAGE:** 0.76 (Moderate. Swarm processing is stable.)
+**MEMORY:** 13Gi available (Optimal. Resource saturation is minimal.)
+**SWAP:** 16Ki used (Optimal. No memory pressure detected.)
+**DISK USAGE:** 73% on /dev/sda2. (STATUS: CAUTION. While not critical, monitor storage consumption patterns. Archive old mission logs or clear caches periodically to maintain operational overhead.)
+**CONCLUSION:** The swarm core is operating within nominal parameters. No immediate resource warnings or anomalies detected. All systems nominal.
+
+=== 🧠 RESEARCH DEPLOYMENT: INOTIFYWAIT ⚙️ ===
+**SKILL NAME:** `inotifywait`
+**CONCEPT:** This command is a powerful utility for event-driven programming on Linux. It waits for specified file system events (like file creation, deletion, or modification) on a directory or file, without needing continuous polling (which is inefficient).
+**USE CASE:** If your swarm nodes need to react instantly when a specific configuration file is updated, or when a log file reaches a certain size, `inotifywait` is far superior to a simple `sleep` loop combined with `ls` or `cat`.
+
+**HOW TO IMPLEMENT:**
+The syntax is `inotifywait -e <event> <path>`.
+
+1.  **Test Case:** Let's say you want a script to automatically detect the moment a file named `mission_config.yaml` is written to the `/etc/swarm/` directory.
+2.  **Command:** `inotifywait -e close_write /etc/swarm/`
+    *   `-e`: Specifies the event type (e.g., `create`, `delete`, `close_write`). `close_write` is perfect for configurations, as it means the file has finished being written to.
+    *   `/etc/swarm/`: The directory to watch.
+3.  **Script Logic (Conceptual):** You would typically pipe this command into a `while read` loop or use it to trigger a background process that executes a defined script whenever the specified event occurs.
+    *   *Example Action:* The moment the event fires, the swarm executes a dynamic task: `echo "CONFIG CHANGE DETECTED. Rerunning subsystem initialization." > /tmp/reinit.log && ./reinitialize_systems.sh`

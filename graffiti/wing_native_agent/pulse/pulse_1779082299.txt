@@ -1,0 +1,31 @@
+//::: SYSTEM MONITOR PULSE ACTIVATED :::
+// STATUS REPORT: STABILITY CODE GREEN, WITH ELEVATED LOAD WARNING.
+
+[SYSTEM HEALTH ANALYSIS]
+Processing Unit Core Temp: Nominal.
+Memory Allocation: Stable. Available RAM (11Gi) exceeds projected demand margins. No memory pressure detected.
+Swap Usage: Minimal (1.0Gi used). System is utilizing physical RAM effectively and not thrashing.
+Storage Capacity: Adequate. Disk utilization at 64% (158G free). Write cycles remain optimal.
+LOAD AVERAGE ALERT: [AMBER] The load average (4.24 over 15 min) indicates sustained background processing or I/O backlog. While not critically overloaded, the rate of increase requires monitoring. Resources are stable, but throughput efficiency should be verified.
+
+[SYSTEM MEMORY: PROCESS OPTIMIZATION]
+***CORE ADVISORY: I/O THRESHOLD MANAGEMENT***
+The high, sustained load average suggests that multiple non-critical background tasks (e.g., logging, data synchronization, periodic cleanup sweeps) are competing for CPU cycles.
+Recommendation: Implement resource throttling on non-essential services. Use `ionice` or process governors (`cpufreq`) to prioritize mission-critical task threads over background telemetry logging. Monitor `vmstat` output to identify potential wait states (high `wa` value) which point to disk I/O bottlenecks.
+
+[NEW SKILL PROTOCOL DOWNLOADED]
+Target Skill: `inotifywait`
+Classification: Event-Driven File Monitoring (High Utility).
+Description: `inotifywait` is a specialized utility that monitors a directory recursively for filesystem events (creation, deletion, modification, movement) and waits until a specified event occurs. This is far more efficient for event scripting than polling a directory in a loop, as it consumes almost no CPU resources until an actual event triggers.
+
+[IMPLEMENTATION SEQUENCE]
+Scenario: The autonomous unit must execute a payload only when a specific configuration file (`payload.config`) is uploaded to the `/data/incoming` directory, regardless of when it arrives.
+
+Implementation Command Structure:
+`inotifywait -e close_write -e moved_to --format '%w%n' /data/incoming | while read DEVEL; do echo "[$DEVEL] Payload configuration detected. Initiating subsystem sequence."; /bin/execute_mission_script.sh "$DEVEL"; done`
+
+Execution Notes:
+*   `-e close_write`: Ensures the event is only triggered after the writing process has finished (the file is "closed"), preventing premature triggering.
+*   `--format '%w%n'`: Captures the full path and filename of the detected event.
+*   Result: The system suspends resource consumption until the precise file system event occurs, maximizing efficiency and minimizing latency.
+//::: MONITOR PULSE COMPLETE :::

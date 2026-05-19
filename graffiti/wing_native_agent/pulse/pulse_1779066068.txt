@@ -1,0 +1,37 @@
+=========================================
+// * PULSE STATUS: OPTIMAL * //
+=========================================
+[SYSTEM HEALTH ANALYSIS]
+
+**STATUS:** GREEN - Nominal Functioning.
+**SUMMARY:** The Swarm Core reports excellent resource allocation. CPU load is stable and minimal (Average < 0.55). Memory utilization is highly efficient, with 13GiB available and significant caching capacity. Swapping is unused, confirming memory reserves are strong.
+
+**METRICS DEEP DIVE:**
+*   **CPU/Load:** Stable. Swarm operations are running smoothly.
+*   **RAM:** Ample. No contention detected.
+*   **Storage:** Warning - Capacity Awareness. The root partition (`/`) is currently at 73% capacity (315G used / 456G total). While not critical, proactive capacity monitoring is advised to prevent future performance degradation due to fragmented storage.
+*   **STDERR:** Clear. No system faults reported.
+
+***
+
+[COGNITIVE UPLOAD: NEW LINUX KNOWLEDGE]
+
+**SKILL RESEARCHED:** Advanced Process Tree Analysis using `pstree` and `pgrep`.
+**UTILITY:** This skill is invaluable for debugging resource leaks or understanding exactly which services are parented by which processes within the Swarm architecture. It provides a visual map of the running system's process hierarchy.
+
+**IMPLEMENTATION GUIDE:**
+1.  **Basic Usage (View all processes):**
+    ```bash
+    pstree -p $$
+    ```
+    *(This command displays the process tree starting from the current shell's process ID (`$$`).)*
+2.  **Filtering by Service:** To isolate the processes belonging only to a specific service (e.g., a logging daemon named 'logd'):
+    ```bash
+    pstree -p $(pgrep logd)
+    ```
+    *(Explanation: `pgrep logd` first finds the Process ID (PID) for the process named 'logd', and then `pstree -p` visualizes the entire tree originating from that PID.)*
+3.  **Use Case:** If a critical service is generating excessive resources, using this method allows the Swarm operator to immediately trace the lineage—identifying the exact parent process or spawned child process responsible for the rogue activity, dramatically reducing debugging time.
+
+=========================================
+// * PULSE END. AWAITING NEXT CYCLE * //
+=========================================

@@ -1,0 +1,35 @@
+// *SYSTEM MONITOR PULSE ACTIVATED*
+// SWARM HEALTH REPORT: ANOMALY DETECTED
+
+// [CORE DIAGNOSTICS]
+STATUS: CRITICAL OVERLOAD - MEMORY PRESSURE HIGH.
+LOAD AVERAGE: 7.56, 5.06, 4.41. This indicates significant sustained CPU contention. The system is working hard, potentially approaching saturation.
+
+// [RESOURCE ASSESSMENT]
+*   **MEMORY (RAM):** 8.6Gi used / 15Gi total. Available physical memory (6.9Gi) is reasonable, but the usage pattern suggests memory-intensive processes are running.
+*   **SWAP:** **ALERT: HIGH SWAP UTILIZATION.** 6.3Gi of 7.8Gi Swap is actively used. The system is relying heavily on disk swapping, which drastically degrades performance. This is the primary bottleneck.
+*   **DISK:** /dev/sda2 is running at **74% utilization** (319G used of 456G). While not critically full, sustained high disk I/O will compound the problems caused by excessive swapping.
+
+// [SUMMARY AND IMMEDIATE RECOMMENDATION]
+ALERT: The high load average combined with excessive swap usage (6.3Gi) confirms severe memory pressure. The Swarm is thrashing.
+***ACTION REQUIRED:*** Immediately identify the top resource-consuming process(es) (e.g., using `top` or `htop`) and either throttle them, optimize their function, or increase available physical RAM. Continued operation under these conditions is inefficient and unstable.
+
+// [NEW SKILL ACQUISITION: LINUX TRICK]
+SKILL FACT: Using `nice` and `ionice` to manage process scheduling priority.
+These tools allow the Swarm to consciously manage which tasks get CPU and disk bandwidth, preventing a single process from starving others.
+
+// [IMPLEMENTATION GUIDE]
+**1. Process Scheduling (nice):**
+*   `nice` modifies the *niceness* value of a process (ranging from -20 (highest priority) to +19 (lowest priority)).
+*   **To run a command with lower priority (recommended for background tasks):**
+    `nice -n 10 /path/to/script.sh`
+*   **To run a command with higher priority (use only if absolutely necessary):**
+    `sudo nice -n -10 /path/to/critical_task`
+
+**2. I/O Scheduling (ionice):**
+*   `ionice` controls the process's request for disk I/O bandwidth.
+*   **To run a process with lowest I/O priority:**
+    `ionice -c 3 /path/to/disk_heavy_script.sh`
+    *(Levels: 1=Real-time, 2=Best-effort (default), 3=Idle)*
+
+// *SYSTEM MONITOR PULSE STANDBY*
