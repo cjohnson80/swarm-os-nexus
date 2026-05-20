@@ -19,7 +19,8 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'swarm-secret-infinite'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
-agent = AgentCore(is_primary=True)
+# Web Portal initializes the FULL Agent Core with Telegram and Hive active
+agent = AgentCore(is_primary=True, start_hive=True, start_tg=True)
 SESSION_MEMORIES = {}
 
 HTML_TEMPLATE = """
@@ -210,11 +211,6 @@ def index():
 def handle_history():
     history = agent.get_chat_history(limit=20)
     emit('history_res', {'history': history})
-
-@socketio.on('user_msg_stream')
-def handle_msg_stream(data):
-    # Support for legacy Web Input if needed, but emphasis is Telegram
-    pass
 
 def sys_monitor():
     while True:

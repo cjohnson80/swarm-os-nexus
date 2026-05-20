@@ -13,8 +13,8 @@ def pulse():
     is_emergency = "--emergency" in sys.argv
     print(f"Workflow Pulse Starting... (Emergency: {is_emergency})")
     
-    # Initialize agent: start_hive=False to avoid port conflicts with the running portal
-    agent = AgentCore(is_primary=True, start_hive=False)
+    # Initialize agent for analysis only (no listeners to avoid conflicts)
+    agent = AgentCore(is_primary=True, start_hive=False, start_tg=False)
     
     # 1. Workflow Heuristics (Proactive Intelligence)
     workflow_trigger = agent.detect_workflow_spike()
