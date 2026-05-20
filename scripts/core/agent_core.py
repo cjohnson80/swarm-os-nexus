@@ -132,8 +132,19 @@ class AgentCore:
                         text = msg.get("text")
                         if text and chat_id == self.tg_chat_id:
                             self.log(f"TELEGRAM_INPUT: {text}", title="USER")
-                            reply = self.process_chat(text)
-                            self.send_telegram(reply)
+                            
+                            # Workflow Shortcuts
+                            if text == "/status":
+                                ctx = self.scan_workflow_context()
+                                reply = f"📊 *Workflow Snapshot:*\\n\\n*Project:* {ctx['project']}\\n*Branch:* {ctx['git_branch']}\\n*Changes:* {'Yes' if ctx['has_changes'] else 'No'}\\n*Status:* {'STALLED' if ctx['stalled'] else 'ACTIVE'}"
+                                self.send_telegram(reply)
+                            elif text == "/rehearse":
+                                self.send_telegram("💠 *Initiating Rehearsal:* Analyzing uncommitted changes...")
+                                res = self.run_digital_twin("git diff")
+                                self.send_telegram(f"⚡ *Sandbox Output:*\\n```\\n{res['output'][:2000]}\\n```")
+                            else:
+                                reply = self.process_chat(text)
+                                self.send_telegram(reply)
             except: time.sleep(5)
             time.sleep(2)
 
