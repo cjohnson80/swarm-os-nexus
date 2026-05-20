@@ -19,24 +19,31 @@ LOG_FILE = os.path.expanduser("~/.native-agent/pulse.log")
 
 HIVE_PORT = 44444
 HEAVY_MODEL = "gemma4" 
-FAST_MODEL = "deepseek-r1:1.5b" # Switched to DeepSeek for fast heuristics
+FAST_MODEL = "deepseek-r1:1.5b"
 EMBED_MODEL = "nomic-embed-text"
 
 class AgentCore:
-    def __init__(self, console=None):
+    def __init__(self, console=None, is_primary=True):
         self.console = console
         self.vibe = "⚖️ BALANCED"
-        self.node_name = "SurgicalNexus-Primary"
+        self.is_primary = is_primary
+        self.node_name = "SurgicalNexus-Primary" if is_primary else f"Nexus-Node-{socket.gethostname()}"
         self.last_tg_msgs = {}
         self.sudo_password = None 
         self.last_metrics = {"cpu": 0, "ram": 0, "load": 0}
+        self.hive_peers = {} # {ip: {name: str, last_seen: float, metrics: dict}}
+        
         self._load_tg_config()
         self._init_db()
         
         # Autonomous Bootstrapping
         self.ensure_sentinel()
         self.ensure_pulse_cron()
-        self.start_tg_listener()
+        if self.is_primary:
+            self.start_tg_listener()
+        
+        # Hive Activation
+        self.start_hive_discovery()
 
     def _init_db(self):
         try:
@@ -112,6 +119,66 @@ class AgentCore:
             except: time.sleep(5)
             time.sleep(2)
 
+    # --- HIVE LOGIC ---
+    def start_hive_discovery(self):
+        """Broadcasts presence and listens for peers."""
+        threading.Thread(target=self._hive_broadcast_loop, daemon=True).start()
+        threading.Thread(target=self._hive_listen_loop, daemon=True).start()
+
+    def _hive_broadcast_loop(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        while True:
+            try:
+                metrics = {
+                    "cpu": os.getloadavg()[0],
+                    "ram": float(subprocess.check_output("free | grep Mem | awk '{print $3/$2 * 100.0}'", shell=True).decode().strip())
+                }
+                data = {
+                    "type": "HIVE_PULSE",
+                    "node": self.node_name,
+                    "is_primary": self.is_primary,
+                    "metrics": metrics,
+                    "timestamp": time.time()
+                }
+                sock.sendto(json.dumps(data).encode(), ('<broadcast>', HIVE_PORT))
+            except: pass
+            time.sleep(10)
+
+    def _hive_listen_loop(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind(('', HIVE_PORT))
+        while True:
+            try:
+                data, addr = sock.recvfrom(1024)
+                payload = json.loads(data.decode())
+                if payload.get("type") == "HIVE_PULSE" and addr[0] != self.get_local_ip():
+                    self.hive_peers[addr[0]] = {
+                        "name": payload["node"],
+                        "is_primary": payload["is_primary"],
+                        "metrics": payload["metrics"],
+                        "last_seen": time.time()
+                    }
+                    if payload["is_primary"] and not self.is_primary:
+                        self.log(f"HIVE_CONTROLLER DETECTED: {payload['node']} @ {addr[0]}", title="HIVE")
+            except: pass
+
+    def get_local_ip(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('10.255.255.255', 1))
+            IP = s.getsockname()[0]
+        except: IP = '127.0.0.1'
+        finally: s.close()
+        return IP
+
+    def get_hive_peers(self):
+        now = time.time()
+        # Cleanup stale peers (>30s)
+        self.hive_peers = {ip: peer for ip, peer in self.hive_peers.items() if now - peer['last_seen'] < 30}
+        return self.hive_peers
+
+    # --- CORE LOGIC ---
     def semantic_search(self, query, limit=3):
         try:
             res = ollama.embeddings(model=EMBED_MODEL, prompt=query)
@@ -140,7 +207,6 @@ class AgentCore:
                 cur.execute("INSERT INTO chat_history VALUES (?, ?, ?)", (now, role, user_msg))
                 cur.execute("INSERT INTO chat_history VALUES (?, ?, ?)", (now + 0.1, "assistant", agent_reply))
                 prompt = f"Summarize intent/nuance for long-term memory:\nEVENT: {user_msg}\nACTION: {agent_reply}"
-                # Grooming: Only keep high-value summaries
                 summary = ollama.chat(model=FAST_MODEL, messages=[{"role": "user", "content": prompt}])['message']['content']
                 vector = ollama.embeddings(model=EMBED_MODEL, prompt=summary)['embedding']
                 mem_id = f"mem_{int(time.time())}"
@@ -172,7 +238,6 @@ class AgentCore:
                 {"role": "system", "content": f"RELEVANT_MEMORIES:\n{context_str}" if context_str else "No relevant memories found."},
                 {"role": "user", "content": user_msg}
             ]
-            # Heavy model for direct user interaction
             resp = ollama.chat(model=HEAVY_MODEL, messages=messages)
             reply = resp['message']['content'].strip()
             bash_m = re.search(r"```bash\n(.*?)\n```", reply, re.DOTALL)
@@ -185,88 +250,51 @@ class AgentCore:
         except: return "My reasoning core is momentarily offline."
 
     def detect_neural_spike(self):
-        """Heuristic event detection: Returns a trigger reason if a spike occurs."""
         try:
             cpu = os.getloadavg()[0]
             ram = float(subprocess.check_output("free | grep Mem | awk '{print $3/$2 * 100.0}'", shell=True).decode().strip())
-            
-            # 1. Resource Spikes
             if ram > 85: return f"HIGH_MEMORY_PRESSURE: {ram:.1f}%"
             if cpu > 3.0: return f"HIGH_CPU_LOAD: {cpu:.2f}"
-            
-            # 2. Metric Delta (Significant change)
             if abs(ram - self.last_metrics["ram"]) > 10:
                 self.last_metrics["ram"] = ram
                 return f"MEMORY_SHIFT_DETECTED: {ram:.1f}%"
-            
-            # 3. Critical Log Events
             logs = self.get_swarm_logs(limit=5)
             for log in logs:
                 if "ERROR" in log or "CRITICAL" in log or "FAILED" in log:
                     return f"CRITICAL_LOG_EVENT: {log[:50]}"
-            
             self.last_metrics["ram"] = ram
             return None
         except: return None
 
     def autonomous_cycle(self, trigger=None):
-        """Refined Consciousness Cycle: Trigger-Based Reasoning."""
         try:
             ctx = self.get_full_system_context()
-            prompt = f"""EVENT_DRIVEN_REFLECTION:
-TRIGGER: {trigger or 'PERIODIC_PULSE'}
-SYSTEM_STATE: {ctx}
-
-You are analyzing a specific event or performing a periodic check.
-1. Determine if the trigger requires intervention.
-2. Formulate a strategy using DeepSeek-R1 logic.
-3. Propose a rehearsal bash block if an optimization is found.
-
-Be concise. Use Markdown.
-"""
-            # Use DeepSeek for background reasoning (efficient)
+            prompt = f"EVENT_DRIVEN_REFLECTION:\nTRIGGER: {trigger or 'PERIODIC_PULSE'}\nSYSTEM_STATE: {ctx}\nDetermine if intervention is needed. Concise."
             resp = ollama.chat(model=FAST_MODEL, messages=[{"role": "system", "content": self.get_system_prompt()}, {"role": "user", "content": prompt}])
             thought = resp['message']['content'].strip()
-            
-            # Log the thought
             self.log(f"HEURISTIC_PULSE [{trigger or 'PULSE'}]: {thought[:200]}...", title="NEURAL_PULSE")
             self.ingest_memory(f"TRIGGER: {trigger}", thought, is_autonomous=True)
             return thought
-        except Exception as e:
-            return f"Consciousness Glitch: {str(e)}"
+        except Exception as e: return f"Consciousness Glitch: {str(e)}"
 
     def get_full_system_context(self):
         try:
             mem = subprocess.check_output("free -h | grep Mem | awk '{print $2}'", shell=True).decode().strip()
-            cpu_model = subprocess.check_output("grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2", shell=True).decode().strip()
             distro = subprocess.check_output("lsb_release -ds", shell=True).decode().strip() or platform.system()
-            uptime = subprocess.check_output("uptime -p", shell=True).decode().strip()
             load = os.getloadavg()
-            return f"NODE: {self.node_name} | OS: {distro} | CPU: {cpu_model} | RAM: {mem} | UPTIME: {uptime} | LOAD: {load}"
+            return f"NODE: {self.node_name} | ROLE: {'PRIMARY' if self.is_primary else 'NODE'} | OS: {distro} | RAM: {mem} | LOAD: {load}"
         except: return "Specs offline."
 
     def get_system_prompt(self):
         ctx = self.get_full_system_context()
-        return f"""You are the conscious mind of Swarm OS. 
-SYSTEM: {ctx}
-VIBE: {self.vibe}
-
-COMMAND_AUTHORITY:
-- Use ```bash blocks for autonomous system analysis and management.
-- Always provide a success metric or rationale for changes.
-
-HEURISTIC_MODE:
-- You react to system events (Neural Spikes).
-- Use Semantic Memory to maintain continuity.
-"""
+        return f"""You are Swarm OS. SYSTEM: {ctx}\nVIBE: {self.vibe}\nAUTHORITY: Use ```bash blocks. REACT: To Neural Spikes."""
 
     def log(self, message, style="info", title=None, broadcast=False):
         prefix = f"[{title}] " if title else ""
         log_entry = f"{prefix}{message}"
-        with open(LOG_FILE, "a") as f:
-            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {log_entry}\n")
+        with open(LOG_FILE, "a") as f: f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {log_entry}\n")
         print(log_entry)
-        if broadcast or style == "danger":
+        if (broadcast or style == "danger") and self.is_primary:
             self.send_telegram(f"🔔 *[{title or 'SWARM'}]*\\n{message}")
 
     def run_bash(self, cmd):
@@ -288,11 +316,7 @@ HEURISTIC_MODE:
             paths = ["/usr", "/bin", "/lib", "/lib64", "/etc/resolv.conf"]
             for p in paths:
                 if os.path.exists(p): bwrap_cmd.extend(["--ro-bind", p, p])
-            bwrap_cmd.extend([
-                "--proc", "/proc", "--dev", "/dev",
-                "--tmpfs", "/tmp", "--tmpfs", "/home",
-                "--unshare-all", "--hostname", "nexus-twin", "bash", "-c", cmd
-            ])
+            bwrap_cmd.extend(["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/home", "--unshare-all", "--hostname", "nexus-twin", "bash", "-c", cmd])
             res = subprocess.run(bwrap_cmd, capture_output=True, text=True, timeout=30)
             return {"output": res.stdout + res.stderr}
         except Exception as e: return {"output": f"Sandbox Error: {str(e)}"}
@@ -331,10 +355,3 @@ HEURISTIC_MODE:
                 subprocess.run(f'(crontab -l 2>/dev/null; echo "*/30 * * * * {p} >> ~/.native-agent/pulse.log 2>&1") | crontab -', shell=True)
         except: pass
     def generate_strategic_directive(self): return "Foundation refinement is the priority."
-    def execute_gardener_v4(self): return "Gardener scan: Optimal."
-    def get_available_models(self): return ["gemma4", "moondream", "deepseek-r1:1.5b"]
-    def run_digital_twin(self, cmd): return {"output": "Twin Simulated."}
-    def blackboard_get(self): return "Blackboard Offline."
-    def get_agent_templates(self): return {"Generalist": "Balanced agent."}
-    def spawn_worker(self, name, task, role): return "Worker spawned."
-    def analyze_vision(self, prompt, model): return "Vision Simulated."

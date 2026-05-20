@@ -19,7 +19,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'swarm-secret-infinite'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
-agent = AgentCore()
+agent = AgentCore(is_primary=True) # Confirmed as Primary Controller
 SESSION_MEMORIES = {}
 
 HTML_TEMPLATE = """
@@ -28,7 +28,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEXUS | SINGLE_STREAM_v34</title>
+    <title>NEXUS | HIVE_PRIMARY</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;500;700&family=Inter:wght@200;400;600;900&display=swap" rel="stylesheet">
@@ -69,6 +69,15 @@ HTML_TEMPLATE = """
         .hud-label { font-size: 8px; font-weight: 900; letter-spacing: 2px; color: var(--text-dim); }
         .hud-val { font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 500; }
 
+        /* Hive Peers Indicator */
+        #hive-status {
+            position: fixed; top: 30px; right: 40px; display: flex; gap: 10px; z-index: 100;
+        }
+        .peer-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--success);
+            box-shadow: 0 0 10px var(--success); cursor: help;
+        }
+
         /* Security Toggle */
         #lock-pill {
             position: fixed; bottom: 60px; left: 40px; width: 44px; height: 44px; 
@@ -107,15 +116,6 @@ HTML_TEMPLATE = """
             font-size: 17px; line-height: 1.8; color: var(--text-main); font-weight: 200;
         }
 
-        /* Code & Action */
-        pre { background: #000; padding: 25px; border-radius: 12px; border: 1px solid var(--glass-border); margin: 25px 0; position: relative; overflow-x: auto; }
-        code { font-family: 'JetBrains Mono'; color: var(--success); }
-        .commit-btn {
-            position: absolute; top: 15px; right: 15px; background: var(--success); color: #000;
-            border: none; padding: 8px 16px; font-size: 9px; font-weight: 900; border-radius: 4px;
-            cursor: pointer; transition: 0.3s;
-        }
-
         /* Shadow-Entry Modal */
         #shadow-entry {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -132,7 +132,16 @@ HTML_TEMPLATE = """
             font-family: 'JetBrains Mono'; letter-spacing: 5px; font-size: 18px;
         }
 
-        /* Input Dock */
+        /* Code & Action */
+        pre { background: #000; padding: 25px; border-radius: 12px; border: 1px solid var(--glass-border); margin: 25px 0; position: relative; overflow-x: auto; }
+        code { font-family: 'JetBrains Mono'; color: var(--success); }
+        .commit-btn {
+            position: absolute; top: 15px; right: 15px; background: var(--success); color: #000;
+            border: none; padding: 8px 16px; font-size: 9px; font-weight: 900; border-radius: 4px;
+            cursor: pointer; transition: 0.3s;
+        }
+
+        /* Input Dock (Floating at bottom) */
         #input-nexus {
             position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%);
             width: 100%; max-width: 700px; background: rgba(255,255,255,0.02);
@@ -145,7 +154,7 @@ HTML_TEMPLATE = """
             font-family: inherit; font-weight: 200;
         }
 
-        /* Live Ticker */
+        /* Live Ticker (Absolute Bottom) */
         #intel-ticker {
             position: fixed; bottom: 0; left: 0; width: 100%; height: 30px;
             background: #000; display: flex; align-items: center; padding: 0 30px;
@@ -170,10 +179,12 @@ HTML_TEMPLATE = """
             <span id="ram-val" class="hud-val">0.0%</span>
         </div>
         <div class="hud-item">
-            <span class="hud-label">TELEMETRY</span>
-            <span id="cwd-val" class="hud-val">/home/chrisj</span>
+            <span class="hud-label">HIVE_NETWORK</span>
+            <span id="hive-count" class="hud-val">1 NODE</span>
         </div>
     </div>
+
+    <div id="hive-status"></div>
 
     <div id="lock-pill" onclick="showShadowEntry()" title="Authorize Elevated Control">🔒</div>
 
@@ -198,7 +209,7 @@ HTML_TEMPLATE = """
 
     <div id="intel-ticker">
         <span style="color:var(--success); margin-right:15px;">LIVE_PULSE</span>
-        <div id="ticker-content">Nexus stream active...</div>
+        <div id="ticker-content">Nexus primary active...</div>
     </div>
 
     <script>
@@ -310,7 +321,14 @@ HTML_TEMPLATE = """
         socket.on('sys_update', (data) => {
             document.getElementById('cpu-val').innerText = data.cpu.toFixed(2);
             document.getElementById('ram-val').innerText = data.ram.toFixed(1) + '%';
-            document.getElementById('cwd-val').innerText = data.cwd.split('/').pop() || '/';
+            
+            const peerIps = Object.keys(data.peers);
+            document.getElementById('hive-count').innerText = (peerIps.length + 1) + ' NODES';
+            
+            const hiveStatus = document.getElementById('hive-status');
+            hiveStatus.innerHTML = peerIps.map(ip => `
+                <div class="peer-dot" title="${data.peers[ip].name} @ ${ip}"></div>
+            `).join('');
         });
 
         socket.on('log_entry', (data) => {
@@ -375,7 +393,13 @@ def sys_monitor():
             cwd = os.getcwd()
             cpu = os.getloadavg()[0]
             ram_out = subprocess.check_output("free | grep Mem | awk '{print $3/$2 * 100.0}'", shell=True).decode().strip()
-            socketio.emit('sys_update', { 'cwd': cwd, 'cpu': cpu, 'ram': float(ram_out) })
+            peers = agent.get_hive_peers()
+            socketio.emit('sys_update', { 
+                'cwd': cwd, 
+                'cpu': cpu, 
+                'ram': float(ram_out),
+                'peers': peers
+            })
         except: pass
         time.sleep(2)
 
