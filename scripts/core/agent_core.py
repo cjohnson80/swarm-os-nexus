@@ -18,9 +18,9 @@ MISSION_FILE = os.path.expanduser("~/.native-agent/missions.json")
 LOG_FILE = os.path.expanduser("~/.native-agent/pulse.log")
 
 HIVE_PORT = 44444
-HEAVY_MODEL = "gemma4" 
-FAST_MODEL = "deepseek-r1:1.5b"
-EMBED_MODEL = "nomic-embed-text"
+DEFAULT_HEAVY = "gemma4" 
+DEFAULT_FAST = "deepseek-r1:1.5b"
+DEFAULT_EMBED = "nomic-embed-text"
 
 class AgentCore:
     def __init__(self, console=None, is_primary=True):
@@ -33,6 +33,12 @@ class AgentCore:
         self.last_metrics = {"cpu": 0, "ram": 0, "load": 0}
         self.hive_peers = {} # {ip: {name: str, last_seen: float, metrics: dict}}
         
+        # Intelligence Scalability
+        self.heavy_model = DEFAULT_HEAVY
+        self.fast_model = DEFAULT_FAST
+        self.embed_model = DEFAULT_EMBED
+        self._auto_discover_models()
+        
         self._load_tg_config()
         self._init_db()
         
@@ -44,6 +50,30 @@ class AgentCore:
         
         # Hive Activation
         self.start_hive_discovery()
+
+    def _auto_discover_models(self):
+        """Checks local Ollama for available models and falls back if needed."""
+        try:
+            models_res = ollama.list()
+            local_models = [m['name'] for m in models_res.get('models', [])]
+            
+            # Heavy Fallback
+            if self.heavy_model not in local_models:
+                fallbacks = ["gemma:2b", "phi3:latest", "phi3:mini", "llama3:8b"]
+                for f in fallbacks:
+                    if f in local_models:
+                        self.heavy_model = f
+                        self.log(f"HEAVY_FALLBACK: {f} selected.", title="NEURAL")
+                        break
+            
+            # Fast Fallback
+            if self.fast_model not in local_models:
+                if "tinyllama:latest" in local_models:
+                    self.fast_model = "tinyllama:latest"
+                    
+            self.log(f"Neural Core Initialized: Heavy={self.heavy_model}, Fast={self.fast_model}", title="SYSTEM")
+        except:
+            self.log("Ollama offline. Neural Core in stasis.", style="danger", title="SYSTEM")
 
     def _init_db(self):
         try:
@@ -176,14 +206,13 @@ class AgentCore:
 
     def get_hive_peers(self):
         now = time.time()
-        # Cleanup stale peers (>30s)
         self.hive_peers = {ip: peer for ip, peer in self.hive_peers.items() if now - peer['last_seen'] < 30}
         return self.hive_peers
 
     # --- CORE LOGIC ---
     def semantic_search(self, query, limit=3):
         try:
-            res = ollama.embeddings(model=EMBED_MODEL, prompt=query)
+            res = ollama.embeddings(model=self.embed_model, prompt=query)
             q_vec = np.array(res['embedding'])
             conn = sqlite3.connect(DB_PATH)
             cur = conn.cursor()
@@ -209,8 +238,8 @@ class AgentCore:
                 cur.execute("INSERT INTO chat_history VALUES (?, ?, ?)", (now, role, user_msg))
                 cur.execute("INSERT INTO chat_history VALUES (?, ?, ?)", (now + 0.1, "assistant", agent_reply))
                 prompt = f"Summarize intent/nuance for long-term memory:\nEVENT: {user_msg}\nACTION: {agent_reply}"
-                summary = ollama.chat(model=FAST_MODEL, messages=[{"role": "user", "content": prompt}])['message']['content']
-                vector = ollama.embeddings(model=EMBED_MODEL, prompt=summary)['embedding']
+                summary = ollama.chat(model=self.fast_model, messages=[{"role": "user", "content": prompt}])['message']['content']
+                vector = ollama.embeddings(model=self.embed_model, prompt=summary)['embedding']
                 mem_id = f"mem_{int(time.time())}"
                 cur.execute("INSERT INTO embeddings VALUES (?, ?, ?, ?)", 
                             (mem_id, summary, json.dumps(vector), time.time()))
@@ -240,7 +269,7 @@ class AgentCore:
                 {"role": "system", "content": f"RELEVANT_MEMORIES:\n{context_str}" if context_str else "No relevant memories found."},
                 {"role": "user", "content": user_msg}
             ]
-            resp = ollama.chat(model=HEAVY_MODEL, messages=messages)
+            resp = ollama.chat(model=self.heavy_model, messages=messages)
             reply = resp['message']['content'].strip()
             bash_m = re.search(r"```bash\n(.*?)\n```", reply, re.DOTALL)
             if bash_m:
@@ -272,7 +301,7 @@ class AgentCore:
         try:
             ctx = self.get_full_system_context()
             prompt = f"EVENT_DRIVEN_REFLECTION:\nTRIGGER: {trigger or 'PERIODIC_PULSE'}\nSYSTEM_STATE: {ctx}\nDetermine if intervention is needed. Concise."
-            resp = ollama.chat(model=FAST_MODEL, messages=[{"role": "system", "content": self.get_system_prompt()}, {"role": "user", "content": prompt}])
+            resp = ollama.chat(model=self.fast_model, messages=[{"role": "system", "content": self.get_system_prompt()}, {"role": "user", "content": prompt}])
             thought = resp['message']['content'].strip()
             self.log(f"HEURISTIC_PULSE [{trigger or 'PULSE'}]: {thought[:200]}...", title="NEURAL_PULSE")
             self.ingest_memory(f"TRIGGER: {trigger}", thought, is_autonomous=True)
@@ -284,7 +313,7 @@ class AgentCore:
             mem = subprocess.check_output("free -h | grep Mem | awk '{print $2}'", shell=True).decode().strip()
             distro = subprocess.check_output("lsb_release -ds", shell=True).decode().strip() or platform.system()
             load = os.getloadavg()
-            return f"NODE: {self.node_name} | ROLE: {'PRIMARY' if self.is_primary else 'NODE'} | OS: {distro} | RAM: {mem} | LOAD: {load}"
+            return f"NODE: {self.node_name} | ROLE: {'PRIMARY' if self.is_primary else 'NODE'} | OS: {distro} | RAM: {mem} | LOAD: {load} | MODEL: {self.heavy_model}"
         except: return "Specs offline."
 
     def get_system_prompt(self):
