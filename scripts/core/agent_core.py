@@ -33,16 +33,20 @@ class AgentCore:
         self.last_metrics = {"cpu": 0, "ram": 0, "load": 0}
         self.hive_peers = {} # {ip: {name: str, last_seen: float, metrics: dict}}
         
-        # Intelligence Scalability
+        # 1. Critical Bootstrapping (Config must be first for logging safety)
+        self.tg_token = None
+        self.tg_chat_id = None
+        self._load_tg_config()
+        
+        # 2. Intelligence Scalability
         self.heavy_model = DEFAULT_HEAVY
         self.fast_model = DEFAULT_FAST
         self.embed_model = DEFAULT_EMBED
         self._auto_discover_models()
         
-        self._load_tg_config()
         self._init_db()
         
-        # Autonomous Bootstrapping
+        # 3. Autonomous Bootstrapping
         self.ensure_sentinel()
         self.ensure_pulse_cron()
         if self.is_primary:
@@ -54,26 +58,31 @@ class AgentCore:
     def _auto_discover_models(self):
         """Checks local Ollama for available models and falls back if needed."""
         try:
-            models_res = ollama.list()
-            local_models = [m['name'] for m in models_res.get('models', [])]
+            res = ollama.list()
+            # Handle different versions of Ollama library response
+            local_models = []
+            models_list = res.get('models', []) if isinstance(res, dict) else res.models
+            for m in models_list:
+                name = m.get('name') if isinstance(m, dict) else getattr(m, 'model', getattr(m, 'name', None))
+                if name: local_models.append(name)
             
             # Heavy Fallback
             if self.heavy_model not in local_models:
-                fallbacks = ["gemma:2b", "phi3:latest", "phi3:mini", "llama3:8b"]
+                fallbacks = ["gemma:2b", "phi3:latest", "phi3:mini", "llama3:8b", "llama3.2:latest"]
                 for f in fallbacks:
-                    if f in local_models:
+                    if any(f in m for m in local_models):
                         self.heavy_model = f
                         self.log(f"HEAVY_FALLBACK: {f} selected.", title="NEURAL")
                         break
             
             # Fast Fallback
             if self.fast_model not in local_models:
-                if "tinyllama:latest" in local_models:
+                if any("tinyllama" in m for m in local_models):
                     self.fast_model = "tinyllama:latest"
                     
             self.log(f"Neural Core Initialized: Heavy={self.heavy_model}, Fast={self.fast_model}", title="SYSTEM")
-        except:
-            self.log("Ollama offline. Neural Core in stasis.", style="danger", title="SYSTEM")
+        except Exception as e:
+            self.log(f"Ollama discovery fault: {str(e)}. Using defaults.", style="danger", title="SYSTEM")
 
     def _init_db(self):
         try:
@@ -92,8 +101,6 @@ class AgentCore:
         return True
 
     def _load_tg_config(self):
-        self.tg_token = None
-        self.tg_chat_id = None
         try:
             env_path = os.path.expanduser("~/.native-agent/.env")
             if os.path.exists(env_path):
@@ -149,9 +156,7 @@ class AgentCore:
             except: time.sleep(5)
             time.sleep(2)
 
-    # --- HIVE LOGIC ---
     def start_hive_discovery(self):
-        """Broadcasts presence and listens for peers."""
         threading.Thread(target=self._hive_broadcast_loop, daemon=True).start()
         threading.Thread(target=self._hive_listen_loop, daemon=True).start()
 
@@ -209,7 +214,6 @@ class AgentCore:
         self.hive_peers = {ip: peer for ip, peer in self.hive_peers.items() if now - peer['last_seen'] < 30}
         return self.hive_peers
 
-    # --- CORE LOGIC ---
     def semantic_search(self, query, limit=3):
         try:
             res = ollama.embeddings(model=self.embed_model, prompt=query)
