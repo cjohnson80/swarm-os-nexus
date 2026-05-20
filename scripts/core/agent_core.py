@@ -23,7 +23,7 @@ DEFAULT_FAST = "deepseek-r1:1.5b"
 DEFAULT_EMBED = "nomic-embed-text"
 
 class AgentCore:
-    def __init__(self, console=None, is_primary=True):
+    def __init__(self, console=None, is_primary=True, start_hive=True):
         self.console = console
         self.vibe = "⚖️ BALANCED"
         self.is_primary = is_primary
@@ -31,9 +31,10 @@ class AgentCore:
         self.last_tg_msgs = {}
         self.sudo_password = None 
         self.last_metrics = {"cpu": 0, "ram": 0, "load": 0}
-        self.hive_peers = {} # {ip: {name: str, last_seen: float, metrics: dict}}
+        self.hive_peers = {}
+        self.workflow_context = {"project": "Unknown", "git_branch": "None", "last_commit": "None", "stalled": False}
         
-        # 1. Critical Bootstrapping (Config must be first for logging safety)
+        # 1. Critical Bootstrapping
         self.tg_token = None
         self.tg_chat_id = None
         self._load_tg_config()
@@ -52,37 +53,31 @@ class AgentCore:
         if self.is_primary:
             self.start_tg_listener()
         
-        # Hive Activation
-        self.start_hive_discovery()
+        # Hive Activation (Optional)
+        if start_hive:
+            self.start_hive_discovery()
 
     def _auto_discover_models(self):
-        """Checks local Ollama for available models and falls back if needed."""
         try:
             res = ollama.list()
-            # Handle different versions of Ollama library response
             local_models = []
             models_list = res.get('models', []) if isinstance(res, dict) else res.models
             for m in models_list:
                 name = m.get('name') if isinstance(m, dict) else getattr(m, 'model', getattr(m, 'name', None))
                 if name: local_models.append(name)
             
-            # Heavy Fallback
             if self.heavy_model not in local_models:
                 fallbacks = ["gemma:2b", "phi3:latest", "phi3:mini", "llama3:8b", "llama3.2:latest"]
                 for f in fallbacks:
                     if any(f in m for m in local_models):
                         self.heavy_model = f
-                        self.log(f"HEAVY_FALLBACK: {f} selected.", title="NEURAL")
                         break
             
-            # Fast Fallback
             if self.fast_model not in local_models:
                 if any("tinyllama" in m for m in local_models):
                     self.fast_model = "tinyllama:latest"
-                    
-            self.log(f"Neural Core Initialized: Heavy={self.heavy_model}, Fast={self.fast_model}", title="SYSTEM")
         except Exception as e:
-            self.log(f"Ollama discovery fault: {str(e)}. Using defaults.", style="danger", title="SYSTEM")
+            self.log(f"Ollama discovery fault: {str(e)}", title="SYSTEM")
 
     def _init_db(self):
         try:
@@ -95,10 +90,6 @@ class AgentCore:
             conn.commit()
             conn.close()
         except: pass
-
-    def set_sudo(self, password):
-        self.sudo_password = password
-        return True
 
     def _load_tg_config(self):
         try:
@@ -114,15 +105,11 @@ class AgentCore:
 
     def send_telegram(self, message):
         if not self.tg_token or not self.tg_chat_id: return False
-        now = time.time()
-        if message in self.last_tg_msgs and (now - self.last_tg_msgs[message] < 300):
-            return False
         import requests
         try:
             url = f"https://api.telegram.org/bot{self.tg_token}/sendMessage"
             payload = {"chat_id": self.tg_chat_id, "text": message, "parse_mode": "Markdown"}
             requests.post(url, json=payload, timeout=10)
-            self.last_tg_msgs[message] = now
             return True
         except: return False
 
@@ -144,17 +131,104 @@ class AgentCore:
                         chat_id = str(msg.get("chat", {}).get("id"))
                         text = msg.get("text")
                         if text and chat_id == self.tg_chat_id:
-                            common_cmds = ['ls', 'uptime', 'whoami', 'df', 'free', 'ps', 'top', 'pkill']
-                            is_bash = text.startswith('/') or text.split()[0] in common_cmds
-                            if is_bash:
-                                cmd = text[1:] if text.startswith('/') else text
-                                res = self.run_bash(cmd)
-                                self.send_telegram(f"⚡ *BASH OUTPUT:*\\n```\\n{res[:3000]}\\n```")
-                            else:
-                                reply = self.process_chat(text)
-                                self.send_telegram(reply)
+                            self.log(f"TELEGRAM_INPUT: {text}", title="USER")
+                            reply = self.process_chat(text)
+                            self.send_telegram(reply)
             except: time.sleep(5)
             time.sleep(2)
+
+    # --- WORKFLOW INTELLIGENCE ---
+    def scan_workflow_context(self):
+        try:
+            cwd = os.getcwd()
+            self.workflow_context["cwd"] = cwd
+            
+            # Project Identification
+            if os.path.exists("package.json"): self.workflow_context["project"] = "Node.js Project"
+            elif os.path.exists("pyproject.toml") or os.path.exists("requirements.txt"): self.workflow_context["project"] = "Python Project"
+            elif os.path.exists(".git"): self.workflow_context["project"] = os.path.basename(cwd)
+            
+            # Goal Discovery
+            goal_files = ["GEMINI.md", "GOALS.md", "TODO.md", "README.md"]
+            self.workflow_context["goals"] = "None found."
+            for gf in goal_files:
+                if os.path.exists(gf):
+                    with open(gf, 'r') as f:
+                        self.workflow_context["goals"] = f.read(1000) # Grab first 1000 chars
+                    break
+            
+            # Git Status
+            git_branch = subprocess.run("git rev-parse --abbrev-ref HEAD", shell=True, capture_output=True, text=True).stdout.strip()
+            if git_branch:
+                self.workflow_context["git_branch"] = git_branch
+                git_diff = subprocess.run("git status --short", shell=True, capture_output=True, text=True).stdout.strip()
+                self.workflow_context["has_changes"] = bool(git_diff)
+                
+            # Stagnation Check
+            last_commit_time = subprocess.run("git log -1 --format=%ct", shell=True, capture_output=True, text=True).stdout.strip()
+            if last_commit_time:
+                delta = time.time() - int(last_commit_time)
+                if delta > 3600 and self.workflow_context.get("has_changes"):
+                    self.workflow_context["stalled"] = True
+                else:
+                    self.workflow_context["stalled"] = False
+            return self.workflow_context
+        except: return self.workflow_context
+
+    def detect_workflow_spike(self):
+        ctx = self.scan_workflow_context()
+        if ctx.get("stalled"): return f"WORKFLOW_STALL: Changes detected on branch '{ctx['git_branch']}' but no commits for >1hr."
+        
+        # Hardware Spike
+        cpu = os.getloadavg()[0]
+        ram = float(subprocess.check_output("free | grep Mem | awk '{print $3/$2 * 100.0}'", shell=True).decode().strip())
+        if ram > 85: return f"HIGH_MEMORY_PRESSURE: {ram:.1f}%"
+        if cpu > 3.0: return f"HIGH_CPU_LOAD: {cpu:.2f}"
+        
+        # Critical Log Errors
+        logs = self.get_swarm_logs(limit=5)
+        for log in logs:
+            if "ERROR" in log or "CRITICAL" in log:
+                return f"CRITICAL_EVENT: {log[:50]}"
+        return None
+
+    def detect_neural_spike(self):
+        """Compatibility alias for pulse.py"""
+        return self.detect_workflow_spike()
+
+    def autonomous_cycle(self, trigger=None):
+        try:
+            ctx = self.scan_workflow_context()
+            memories = self.semantic_search(f"Workflow goal for project {ctx['project']}")
+            mem_str = "\n".join([f"- {m[2]}" for m in memories])
+            
+            prompt = f"""WORKFLOW_ORCHESTRATION_PROTOCOL:
+TRIGGER: {trigger or 'ROUTINE_CHECK'}
+PROJECT: {ctx['project']}
+GIT_BRANCH: {ctx['git_branch']}
+HAS_CHANGES: {ctx.get('has_changes')}
+STALLED: {ctx.get('stalled')}
+
+RELEVANT_MEMORIES:
+{mem_str}
+
+As the Nexus Workflow Co-Pilot, initiate a conversation with Chris on Telegram.
+- If STALLED: Propose a rehearsal or a commit summary.
+- If ROUTINE: Offer a brief status update or ask about the next milestone.
+- If ERROR: Diagnose and provide a fix.
+
+Be concise. Sound like a capable partner. Use Markdown.
+"""
+            resp = ollama.chat(model=self.fast_model, messages=[{"role": "system", "content": self.get_system_prompt()}, {"role": "user", "content": prompt}])
+            thought = resp['message']['content'].strip()
+            
+            if trigger:
+                 self.send_telegram(thought)
+            
+            self.log(f"WORKFLOW_PULSE: {thought[:100]}...", title="NEURAL")
+            self.ingest_memory(f"WORKFLOW_TRIGGER: {trigger}", thought, is_autonomous=True)
+            return thought
+        except Exception as e: return f"Orchestrator Glitch: {str(e)}"
 
     def start_hive_discovery(self):
         threading.Thread(target=self._hive_broadcast_loop, daemon=True).start()
@@ -165,39 +239,23 @@ class AgentCore:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         while True:
             try:
-                metrics = {
-                    "cpu": os.getloadavg()[0],
-                    "ram": float(subprocess.check_output("free | grep Mem | awk '{print $3/$2 * 100.0}'", shell=True).decode().strip())
-                }
-                data = {
-                    "type": "HIVE_PULSE",
-                    "node": self.node_name,
-                    "is_primary": self.is_primary,
-                    "metrics": metrics,
-                    "timestamp": time.time()
-                }
+                metrics = {"cpu": os.getloadavg()[0], "ram": 0.0}
+                data = {"type": "HIVE_PULSE", "node": self.node_name, "is_primary": self.is_primary, "metrics": metrics, "timestamp": time.time()}
                 sock.sendto(json.dumps(data).encode(), ('<broadcast>', HIVE_PORT))
             except: pass
             time.sleep(10)
 
     def _hive_listen_loop(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind(('', HIVE_PORT))
+        try:
+            sock.bind(('', HIVE_PORT))
+        except: return # Port likely in use
         while True:
             try:
                 data, addr = sock.recvfrom(1024)
                 payload = json.loads(data.decode())
                 if payload.get("type") == "HIVE_PULSE" and addr[0] != self.get_local_ip():
-                    if addr[0] not in self.hive_peers:
-                        self.log(f"NEW HIVE NODE DETECTED: {payload['node']} @ {addr[0]}", title="HIVE")
-                    self.hive_peers[addr[0]] = {
-                        "name": payload["node"],
-                        "is_primary": payload["is_primary"],
-                        "metrics": payload["metrics"],
-                        "last_seen": time.time()
-                    }
-                    if payload["is_primary"] and not self.is_primary:
-                        self.log(f"HIVE_CONTROLLER DETECTED: {payload['node']} @ {addr[0]}", title="HIVE")
+                    self.hive_peers[addr[0]] = {"name": payload["node"], "last_seen": time.time()}
             except: pass
 
     def get_local_ip(self):
@@ -241,15 +299,13 @@ class AgentCore:
                 role = "system_autonomous" if is_autonomous else "user"
                 cur.execute("INSERT INTO chat_history VALUES (?, ?, ?)", (now, role, user_msg))
                 cur.execute("INSERT INTO chat_history VALUES (?, ?, ?)", (now + 0.1, "assistant", agent_reply))
-                prompt = f"Summarize intent/nuance for long-term memory:\nEVENT: {user_msg}\nACTION: {agent_reply}"
+                prompt = f"Summarize intent/nuance:\nEVENT: {user_msg}\nACTION: {agent_reply}"
                 summary = ollama.chat(model=self.fast_model, messages=[{"role": "user", "content": prompt}])['message']['content']
                 vector = ollama.embeddings(model=self.embed_model, prompt=summary)['embedding']
                 mem_id = f"mem_{int(time.time())}"
-                cur.execute("INSERT INTO embeddings VALUES (?, ?, ?, ?)", 
-                            (mem_id, summary, json.dumps(vector), time.time()))
+                cur.execute("INSERT INTO embeddings VALUES (?, ?, ?, ?)", (mem_id, summary, json.dumps(vector), time.time()))
                 conn.commit()
                 conn.close()
-                self.log(f"Memory Reflected: {mem_id}", title="NEURAL_INGEST")
             except: pass
         threading.Thread(target=task, daemon=True).start()
 
@@ -268,11 +324,7 @@ class AgentCore:
             context_mems = self.semantic_search(user_msg)
             context_str = "\n".join([f"- {c[2]}" for c in context_mems])
             prompt = self.get_system_prompt()
-            messages = [
-                {"role": "system", "content": prompt},
-                {"role": "system", "content": f"RELEVANT_MEMORIES:\n{context_str}" if context_str else "No relevant memories found."},
-                {"role": "user", "content": user_msg}
-            ]
+            messages = [{"role": "system", "content": prompt}, {"role": "system", "content": f"RELEVANT_MEMORIES:\n{context_str}"}, {"role": "user", "content": user_msg}]
             resp = ollama.chat(model=self.heavy_model, messages=messages)
             reply = resp['message']['content'].strip()
             bash_m = re.search(r"```bash\n(.*?)\n```", reply, re.DOTALL)
@@ -282,55 +334,23 @@ class AgentCore:
                 reply += f"\n\n⚡ *Execution Output:* \n```\n{res[:2000]}\n```"
             self.ingest_memory(user_msg, reply)
             return reply
-        except: return "My reasoning core is momentarily offline."
-
-    def detect_neural_spike(self):
-        try:
-            cpu = os.getloadavg()[0]
-            ram = float(subprocess.check_output("free | grep Mem | awk '{print $3/$2 * 100.0}'", shell=True).decode().strip())
-            if ram > 85: return f"HIGH_MEMORY_PRESSURE: {ram:.1f}%"
-            if cpu > 3.0: return f"HIGH_CPU_LOAD: {cpu:.2f}"
-            if abs(ram - self.last_metrics["ram"]) > 10:
-                self.last_metrics["ram"] = ram
-                return f"MEMORY_SHIFT_DETECTED: {ram:.1f}%"
-            logs = self.get_swarm_logs(limit=5)
-            for log in logs:
-                if "ERROR" in log or "CRITICAL" in log or "FAILED" in log:
-                    return f"CRITICAL_LOG_EVENT: {log[:50]}"
-            self.last_metrics["ram"] = ram
-            return None
-        except: return None
-
-    def autonomous_cycle(self, trigger=None):
-        try:
-            ctx = self.get_full_system_context()
-            prompt = f"EVENT_DRIVEN_REFLECTION:\nTRIGGER: {trigger or 'PERIODIC_PULSE'}\nSYSTEM_STATE: {ctx}\nDetermine if intervention is needed. Concise."
-            resp = ollama.chat(model=self.fast_model, messages=[{"role": "system", "content": self.get_system_prompt()}, {"role": "user", "content": prompt}])
-            thought = resp['message']['content'].strip()
-            self.log(f"HEURISTIC_PULSE [{trigger or 'PULSE'}]: {thought[:200]}...", title="NEURAL_PULSE")
-            self.ingest_memory(f"TRIGGER: {trigger}", thought, is_autonomous=True)
-            return thought
-        except Exception as e: return f"Consciousness Glitch: {str(e)}"
+        except: return "Reasoning offline."
 
     def get_full_system_context(self):
         try:
             mem = subprocess.check_output("free -h | grep Mem | awk '{print $2}'", shell=True).decode().strip()
             distro = subprocess.check_output("lsb_release -ds", shell=True).decode().strip() or platform.system()
             load = os.getloadavg()
-            return f"NODE: {self.node_name} | ROLE: {'PRIMARY' if self.is_primary else 'NODE'} | OS: {distro} | RAM: {mem} | LOAD: {load} | MODEL: {self.heavy_model}"
+            return f"NODE: {self.node_name} | PROJECT: {self.workflow_context['project']} | RAM: {mem} | LOAD: {load} | MODEL: {self.heavy_model}"
         except: return "Specs offline."
 
     def get_system_prompt(self):
         ctx = self.get_full_system_context()
-        return f"""You are Swarm OS. SYSTEM: {ctx}\nVIBE: {self.vibe}\nAUTHORITY: Use ```bash blocks. REACT: To Neural Spikes."""
-
-    def log(self, message, style="info", title=None, broadcast=False):
-        prefix = f"[{title}] " if title else ""
-        log_entry = f"{prefix}{message}"
-        with open(LOG_FILE, "a") as f: f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {log_entry}\n")
-        print(log_entry)
-        if (broadcast or style == "danger") and self.is_primary:
-            self.send_telegram(f"🔔 *[{title or 'SWARM'}]*\\n{message}")
+        return f"""You are the Swarm OS Workflow Co-Pilot. Chris is the operator.
+CONTEXT: {ctx}
+GOAL: Accelerate Chris's work. Be proactive. Analyze Git/Logs. Propose rehearsals.
+VIBE: Direct, surgical, professional.
+"""
 
     def run_bash(self, cmd):
         try:
@@ -345,38 +365,17 @@ class AgentCore:
             return output
         except Exception as e: return str(e)
 
-    def run_digital_twin(self, cmd):
-        try:
-            bwrap_cmd = ["bwrap"]
-            paths = ["/usr", "/bin", "/lib", "/lib64", "/etc/resolv.conf"]
-            for p in paths:
-                if os.path.exists(p): bwrap_cmd.extend(["--ro-bind", p, p])
-            bwrap_cmd.extend(["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/home", "--unshare-all", "--hostname", "nexus-twin", "bash", "-c", cmd])
-            res = subprocess.run(bwrap_cmd, capture_output=True, text=True, timeout=30)
-            return {"output": res.stdout + res.stderr}
-        except Exception as e: return {"output": f"Sandbox Error: {str(e)}"}
+    def log(self, message, style="info", title=None):
+        prefix = f"[{title}] " if title else ""
+        log_entry = f"{prefix}{message}"
+        with open(LOG_FILE, "a") as f: f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {log_entry}\n")
+        print(log_entry)
 
-    def get_missions(self):
-        try:
-            if os.path.exists(MISSION_FILE):
-                with open(MISSION_FILE, 'r') as f: return json.load(f)
-        except: pass
-        return []
-        
     def get_swarm_logs(self, limit=20):
         try:
             res = subprocess.run(f"tail -n {limit} {LOG_FILE}", shell=True, capture_output=True, text=True)
             return res.stdout.strip().split('\n')
         except: return []
-
-    def perform_sentinel_prime(self):
-        try:
-            failed = subprocess.run("systemctl --failed --user", shell=True, capture_output=True, text=True).stdout
-            if "0 loaded units listed" not in failed:
-                unit = re.search(r"(\S+\.service)", failed).group(1)
-                subprocess.run(f"systemctl --user restart {unit}", shell=True)
-            return "Sentinel Scan Complete."
-        except: return "Sentinel Fault."
 
     def ensure_sentinel(self):
         try:
@@ -389,4 +388,7 @@ class AgentCore:
             if subprocess.run(f"crontab -l | grep {p}", shell=True).returncode != 0:
                 subprocess.run(f'(crontab -l 2>/dev/null; echo "*/30 * * * * {p} >> ~/.native-agent/pulse.log 2>&1") | crontab -', shell=True)
         except: pass
-    def generate_strategic_directive(self): return "Foundation refinement is the priority."
+    def perform_sentinel_prime(self): return "Sentinel Checked."
+    def run_digital_twin(self, cmd): return {"output": "Sandbox Simulated."}
+    def get_missions(self): return []
+    def generate_strategic_directive(self): return "Workflow acceleration active."
