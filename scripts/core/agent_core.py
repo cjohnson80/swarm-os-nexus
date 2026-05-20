@@ -172,7 +172,7 @@ class AgentCore:
             
             # 2. Load Semantic Context (Memories)
             context_mems = self.semantic_search(user_msg)
-            mem_str = "\n".join([f"- {c[2]}" for m in context_mems])
+            mem_str = "\n".join([f"- {m[2]}" for m in context_mems])
             
             # 3. Build Orchestration Prompt
             messages = [{"role": "system", "content": self.get_system_prompt()}]
