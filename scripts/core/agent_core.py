@@ -153,6 +153,8 @@ class AgentCore:
                 data, addr = sock.recvfrom(1024)
                 payload = json.loads(data.decode())
                 if payload.get("type") == "HIVE_PULSE" and addr[0] != self.get_local_ip():
+                    if addr[0] not in self.hive_peers:
+                        self.log(f"NEW HIVE NODE DETECTED: {payload['node']} @ {addr[0]}", title="HIVE")
                     self.hive_peers[addr[0]] = {
                         "name": payload["node"],
                         "is_primary": payload["is_primary"],
